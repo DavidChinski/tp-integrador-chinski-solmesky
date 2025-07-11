@@ -92,7 +92,7 @@ app.post("/api/user/login", async (req, res) => {
 
 // ========== GET Eventos (listado con filtros) ==========
 app.get("/api/event", async (req, res) => {
-  const { limit = 15, offset = 0, name, startdate, tag } = req.query;
+  const { limit = 15, offset = 0, name, startdate } = req.query;
   let query = supabase.from("events").select(`
     id, name, description, start_date, duration_in_minutes, price,
     enabled_for_enrollment, max_assistance,
@@ -103,9 +103,8 @@ app.get("/api/event", async (req, res) => {
         id, name, latitude, longitude,
         province:provinces ( id, name, full_name, latitude, longitude )
       )
-    ),
-    tags ( id, name )
-  `, { count: "exact" });
+    )
+  `,);
 
   if (name) query = query.ilike("name", `%${name}%`);
   if (startdate) query = query.eq("start_date", startdate);
@@ -115,13 +114,6 @@ app.get("/api/event", async (req, res) => {
   try {
     let { data, error, count } = await query;
     if (error) return res.status(500).json({ message: error.message });
-
-    if (tag) {
-      data = data.filter(event =>
-        (event.tags || []).some(t => t.name.toLowerCase().includes(tag.toLowerCase()))
-      );
-      count = data.length;
-    }
 
     res.status(200).json({
       collection: data,
@@ -149,8 +141,7 @@ app.get("/api/event/:id", async (req, res) => {
           *, province:provinces (*)
         ),
         creator_user:users (*)
-      ),
-      tags (id, name)
+      )
     `)
     .eq("id", id)
     .single();
@@ -160,26 +151,91 @@ app.get("/api/event/:id", async (req, res) => {
   res.status(200).json(data);
 });
 
-// ========== CRUD Evento ==========
-app.post("/api/event", authenticateToken, async (req, res) => {
-  const { name, description, start_date, duration_in_minutes, price, enabled_for_enrollment, max_assistance, id_event_location, tags } = req.body;
-  const id_creator_user = req.user.id;
+app.get("/api/event/:id/participants", authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { limit = 15, offset = 0 } = req.query;
 
-  if (!isValidString(name) || !isValidString(description)) return res.status(400).json({ message: "Nombre o descripción inválidos." });
-  if (!isPositiveNumber(price) || !isPositiveNumber(duration_in_minutes)) return res.status(400).json({ message: "Duración o precio inválidos." });
+  const { data, error } = await supabase
+    .from("event_enrollments")
+    .select(`
+      attended, rating, description,
+      user:users ( id, username, first_name, last_name )
+    `, { count: "exact" })
+    .eq("id_event", id)
+    .range(Number(offset), Number(offset) + Number(limit) - 1);
 
-  const { data: loc } = await supabase.from("event_locations").select("max_capacity").eq("id", id_event_location).single();
-  if (!loc || max_assistance > loc.max_capacity) return res.status(400).json({ message: "Capacidad excedida." });
+  if (error) return res.status(500).json({ message: "Error al obtener participantes." });
 
-  const { data: event, error } = await supabase.from("events").insert([{
-    name, description, start_date, duration_in_minutes, price,
-    enabled_for_enrollment, max_assistance, id_event_location, id_creator_user
-  }]).select().single();
-
-  if (error) return res.status(500).json({ message: "Error al crear." });
-  res.status(201).json(event);
+  res.status(200).json({
+    collection: data,
+    pagination: {
+      limit: Number(limit),
+      offset: Number(offset),
+      total: data.length,
+      nextPage: data.length === limit ? Number(offset) + Number(limit) : null,
+    },
+  });
 });
 
+// ========== CRUD Evento ==========
+app.post("/api/event", authenticateToken, async (req, res) => {
+  const { name, description, start_date, duration_in_minutes, price, enabled_for_enrollment, max_assistance, id_event_location } = req.body;
+  const id_creator_user = req.user.id;
+
+  // Verificamos que el usuario exista en la tabla 'users'
+  const { data: userExists, error: userError } = await supabase
+    .from("users")
+    .select("id")
+    .eq("id", id_creator_user)
+    .single();
+
+  if (!userExists || userError) {
+    return res.status(400).json({ message: "El usuario autenticado no existe en la base de datos." });
+  }
+
+  // Validaciones de datos del evento
+  if (!isValidString(name) || !isValidString(description)) {
+    return res.status(400).json({ message: "Nombre o descripción inválidos." });
+  }
+
+  if (!isPositiveNumber(price) || !isPositiveNumber(duration_in_minutes)) {
+    return res.status(400).json({ message: "Duración o precio inválidos." });
+  }
+
+  // Verificamos que la ubicación exista y tenga capacidad suficiente
+  const { data: loc } = await supabase
+    .from("event_locations")
+    .select("max_capacity")
+    .eq("id", id_event_location)
+    .single();
+
+  if (!loc || max_assistance > loc.max_capacity) {
+    return res.status(400).json({ message: "Capacidad excedida." });
+  }
+
+  // Creamos el evento
+  const { data: event, error } = await supabase
+    .from("events")
+    .insert([{
+      name,
+      description,
+      start_date,
+      duration_in_minutes,
+      price,
+      enabled_for_enrollment,
+      max_assistance,
+      id_event_location,
+      id_creator_user
+    }])
+    .select()
+    .single();
+
+  if (error) {
+    return res.status(500).json({ message: "Error al crear.", error: error.message });
+  }
+
+  res.status(201).json(event);
+});
 app.put("/api/event", authenticateToken, async (req, res) => {
   const { id, ...updates } = req.body;
   const id_creator_user = req.user.id;
@@ -297,6 +353,106 @@ app.get("/api/event-location/:id", authenticateToken, async (req, res) => {
 
   res.status(200).json(data);
 });
+
+// ========== CRUD EVENT-LOCATION ==========
+
+// Crear una nueva ubicación
+app.post("/api/event-location", authenticateToken, async (req, res) => {
+  const { name, full_address, latitude, longitude, max_capacity, id_location } = req.body;
+  const id_creator_user = req.user.id;
+
+  if (!isValidString(name) || !isValidString(full_address))
+    return res.status(400).json({ message: "Nombre o dirección inválidos." });
+  if (!isPositiveNumber(max_capacity))
+    return res.status(400).json({ message: "Capacidad inválida." });
+
+  const { data, error } = await supabase
+    .from("event_locations")
+    .insert([{
+      name,
+      full_address,
+      latitude,
+      longitude,
+      max_capacity,
+      id_location,
+      id_creator_user
+    }])
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ message: "Error al crear ubicación." });
+  res.status(201).json(data);
+});
+
+// Actualizar una ubicación
+app.put("/api/event-location/:id", authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const id_creator_user = req.user.id;
+
+  // Verifica que la ubicación exista y pertenezca al usuario
+  const { data: location } = await supabase
+    .from("event_locations")
+    .select("*")
+    .eq("id", id)
+    .eq("id_creator_user", id_creator_user)
+    .single();
+
+  if (!location) return res.status(404).json({ message: "Ubicación no encontrada o no autorizada." });
+
+  const { name, full_address, latitude, longitude, max_capacity, id_location } = req.body;
+
+  const { data, error } = await supabase
+    .from("event_locations")
+    .update({
+      name,
+      full_address,
+      latitude,
+      longitude,
+      max_capacity,
+      id_location
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ message: "Error al actualizar ubicación." });
+  res.status(200).json(data);
+});
+
+// Eliminar una ubicación
+app.delete("/api/event-location/:id", authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const id_creator_user = req.user.id;
+
+  // Verifica que la ubicación exista y pertenezca al usuario
+  const { data: location } = await supabase
+    .from("event_locations")
+    .select("*")
+    .eq("id", id)
+    .eq("id_creator_user", id_creator_user)
+    .single();
+
+  if (!location) return res.status(404).json({ message: "Ubicación no encontrada o no autorizada." });
+
+  // Verifica que no existan eventos usando esta ubicación
+  const { data: eventos } = await supabase
+    .from("events")
+    .select("id")
+    .eq("id_event_location", id);
+
+  if ((eventos || []).length > 0)
+    return res.status(400).json({ message: "Ubicación en uso por al menos un evento. No se puede eliminar." });
+
+  const { error } = await supabase
+    .from("event_locations")
+    .delete()
+    .eq("id", id);
+
+  if (error) return res.status(500).json({ message: "Error al eliminar ubicación." });
+
+  res.status(200).json({ message: "Ubicación eliminada correctamente." });
+});
+
 
 // ========== START SERVER ==========
 app.listen(PORT, () => {
