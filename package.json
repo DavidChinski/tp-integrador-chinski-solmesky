@@ -1,11 +1,14 @@
 {
-  "name": "tp-integrador-chinski-solmesky",
+  "name": "gestor-eventos-web",
   "version": "1.0.0",
-  "description": "",
+  "description": "Aplicación web para gestión de eventos",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "author": "",
   "license": "ISC",
@@ -18,6 +21,17 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "p": "^0.2.0",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.8.1",
+    "lucide-react": "^0.263.1",
+    "date-fns": "^2.30.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "@vitejs/plugin-react": "^4.0.3",
+    "vite": "^4.4.5"
   }
 }
