@@ -1,0 +1,31 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+}
+
+.events {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.event-card {
+  border: 1px solid #ccc;
+  padding: 1rem;
+  width: 300px;
+  border-radius: 4px;
+  box-shadow: 1px 1px 4px rgba(0,0,0,0.1);
+}
+
+.event-card button {
+  margin-top: 0.5rem;
+  cursor: pointer;
+}
+
+.detail {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
