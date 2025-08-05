@@ -1,12 +1,13 @@
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Calendar, Plus, User, Menu, X, LogOut } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 import './Navbar.css'
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const location = useLocation()
-  const [isLoggedIn] = useState(false) // Esto se conectará con el estado de autenticación
+  const { isAuthenticated, user, logout } = useAuth()
 
   const navItems = [
     { path: '/', label: 'Inicio', icon: Calendar },
@@ -40,13 +41,13 @@ const Navbar = () => {
 
         {/* User Menu */}
         <div className="navbar-user">
-          {isLoggedIn ? (
+          {isAuthenticated ? (
             <div className="user-menu">
               <Link to="/profile" className="btn btn-secondary">
                 <User className="navbar-icon" />
-                Mi Perfil
+                {user?.first_name || 'Mi Perfil'}
               </Link>
-              <button className="btn btn-secondary">
+              <button className="btn btn-secondary" onClick={logout}>
                 <LogOut className="navbar-icon" />
                 Salir
               </button>
@@ -87,7 +88,7 @@ const Navbar = () => {
             </Link>
           ))}
           
-          {!isLoggedIn && (
+          {!isAuthenticated && (
             <div className="mobile-auth">
               <Link to="/login" className="btn btn-secondary">
                 Iniciar Sesión

@@ -1,11 +1,16 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Calendar, MapPin, Users, DollarSign, Image, Plus, X } from 'lucide-react'
+import { eventsApi, locationsApi } from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 import './CreateEvent.css'
 
 const CreateEvent = () => {
   const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
+  const [locations, setLocations] = useState([])
+  const [loadingLocations, setLoadingLocations] = useState(true)
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -16,9 +21,11 @@ const CreateEvent = () => {
     maxAttendees: '',
     price: '',
     image: null,
-    imagePreview: null
+    imagePreview: null,
+    id_event_location: ''
   })
   const [errors, setErrors] = useState({})
+  const [apiError, setApiError] = useState('')
 
   const categories = [
     'Tecnología',
@@ -90,8 +97,8 @@ const CreateEvent = () => {
       newErrors.time = 'La hora es requerida'
     }
 
-    if (!formData.location.trim()) {
-      newErrors.location = 'La ubicación es requerida'
+    if (!formData.id_event_location) {
+      newErrors.id_event_location = 'La ubicación es requerida'
     }
 
     if (!formData.maxAttendees) {
@@ -108,6 +115,25 @@ const CreateEvent = () => {
     return Object.keys(newErrors).length === 0
   }
 
+  // Cargar ubicaciones del usuario
+  useEffect(() => {
+    const fetchLocations = async () => {
+      try {
+        setLoadingLocations(true)
+        const data = await locationsApi.getLocations()
+        setLocations(data.collection || [])
+      } catch (err) {
+        console.error('Error cargando ubicaciones:', err)
+      } finally {
+        setLoadingLocations(false)
+      }
+    }
+
+    if (isAuthenticated) {
+      fetchLocations()
+    }
+  }, [isAuthenticated])
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     
@@ -116,14 +142,31 @@ const CreateEvent = () => {
     }
 
     setIsLoading(true)
+    setApiError('')
     
-    // Simular creación de evento
-    setTimeout(() => {
-      setIsLoading(false)
-      console.log('Event created:', formData)
-      // Aquí iría la lógica real de creación
+    try {
+      // Combinar fecha y hora
+      const startDate = `${formData.date}T${formData.time}:00`
+      
+      const eventData = {
+        name: formData.title,
+        description: formData.description,
+        start_date: startDate,
+        duration_in_minutes: 120, // Por defecto 2 horas
+        price: parseFloat(formData.price) || 0,
+        enabled_for_enrollment: true,
+        max_assistance: parseInt(formData.maxAttendees),
+        id_event_location: parseInt(formData.id_event_location)
+      }
+      
+      await eventsApi.createEvent(eventData)
       navigate('/events')
-    }, 2000)
+    } catch (error) {
+      console.error('Error creando evento:', error)
+      setApiError('Error al crear el evento. Intenta nuevamente.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -245,20 +288,27 @@ const CreateEvent = () => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="location">Ubicación *</label>
+              <label htmlFor="id_event_location">Ubicación *</label>
               <div className="input-with-icon">
                 <MapPin className="input-icon" />
-                <input
-                  type="text"
-                  id="location"
-                  name="location"
-                  value={formData.location}
+                <select
+                  id="id_event_location"
+                  name="id_event_location"
+                  value={formData.id_event_location}
                   onChange={handleChange}
-                  placeholder="Ej: Centro de Convenciones, Calle Principal 123"
-                  className={`form-input ${errors.location ? 'error' : ''}`}
-                />
+                  className={`form-select ${errors.id_event_location ? 'error' : ''}`}
+                  disabled={loadingLocations}
+                >
+                  <option value="">Selecciona una ubicación</option>
+                  {locations.map(location => (
+                    <option key={location.id} value={location.id}>
+                      {location.name} - {location.full_address}
+                    </option>
+                  ))}
+                </select>
               </div>
-              {errors.location && <span className="error-message">{errors.location}</span>}
+              {errors.id_event_location && <span className="error-message">{errors.id_event_location}</span>}
+              {loadingLocations && <span className="loading-text">Cargando ubicaciones...</span>}
             </div>
           </div>
 
@@ -318,6 +368,12 @@ const CreateEvent = () => {
               )}
             </div>
           </div>
+
+          {apiError && (
+            <div className="error-message form-error">
+              {apiError}
+            </div>
+          )}
 
           <div className="form-actions">
             <button

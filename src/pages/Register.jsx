@@ -1,9 +1,12 @@
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, Calendar, User, Phone } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 import './Auth.css'
 
 const Register = () => {
+  const navigate = useNavigate()
+  const { register } = useAuth()
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -16,6 +19,7 @@ const Register = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState({})
+  const [apiError, setApiError] = useState('')
 
   const handleChange = (e) => {
     setFormData({
@@ -74,13 +78,28 @@ const Register = () => {
     }
 
     setIsLoading(true)
+    setApiError('')
     
-    // Simular llamada a API
-    setTimeout(() => {
+    try {
+      const userData = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        username: formData.email,
+        password: formData.password
+      }
+      
+      const result = await register(userData)
+      
+      if (result.success) {
+        navigate('/login')
+      } else {
+        setApiError(result.message)
+      }
+    } catch (error) {
+      setApiError('Error de conexión. Intenta nuevamente.')
+    } finally {
       setIsLoading(false)
-      // Aquí iría la lógica de registro real
-      console.log('Register attempt:', formData)
-    }, 1000)
+    }
   }
 
   return (
@@ -220,6 +239,12 @@ const Register = () => {
               </div>
               {errors.confirmPassword && <span className="error-message">{errors.confirmPassword}</span>}
             </div>
+
+            {apiError && (
+              <div className="error-message auth-error">
+                {apiError}
+              </div>
+            )}
 
             <div className="form-options">
               <label className="checkbox-container">

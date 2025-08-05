@@ -90,6 +90,11 @@ app.post("/api/user/login", async (req, res) => {
   res.status(200).json({ success: true, token });
 });
 
+// Verificar token
+app.get("/api/user/verify", authenticateToken, async (req, res) => {
+  res.status(200).json(req.user);
+});
+
 // ========== GET Eventos (listado con filtros) ==========
 app.get("/api/event", async (req, res) => {
   const { limit = 15, offset = 0, name, startdate } = req.query;

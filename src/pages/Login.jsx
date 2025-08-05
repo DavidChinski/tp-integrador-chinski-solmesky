@@ -1,15 +1,19 @@
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, Calendar } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 import './Auth.css'
 
 const Login = () => {
+  const navigate = useNavigate()
+  const { login } = useAuth()
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   })
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleChange = (e) => {
     setFormData({
@@ -21,13 +25,21 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setIsLoading(true)
+    setError('')
     
-    // Simular llamada a API
-    setTimeout(() => {
+    try {
+      const result = await login(formData.email, formData.password)
+      
+      if (result.success) {
+        navigate('/events')
+      } else {
+        setError(result.message)
+      }
+    } catch (error) {
+      setError('Error de conexión. Intenta nuevamente.')
+    } finally {
       setIsLoading(false)
-      // Aquí iría la lógica de autenticación real
-      console.log('Login attempt:', formData)
-    }, 1000)
+    }
   }
 
   return (
@@ -84,6 +96,12 @@ const Login = () => {
                 </button>
               </div>
             </div>
+
+            {error && (
+              <div className="error-message auth-error">
+                {error}
+              </div>
+            )}
 
             <div className="form-options">
               <label className="checkbox-container">

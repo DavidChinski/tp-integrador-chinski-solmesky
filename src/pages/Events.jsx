@@ -1,99 +1,57 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, Filter, Calendar, MapPin, Users, ArrowRight, Star } from 'lucide-react'
+import { eventsApi } from '../services/api'
 import './Events.css'
 
 const Events = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [sortBy, setSortBy] = useState('date')
+  const [events, setEvents] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const events = [
-    {
-      id: 1,
-      title: 'Conferencia de Tecnología 2024',
-      date: '2024-03-15',
-      time: '18:00',
-      location: 'Centro de Convenciones',
-      attendees: 150,
-      maxAttendees: 200,
-      price: 0,
-      category: 'Tecnología',
-      image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=250&fit=crop',
-      rating: 4.8,
-      description: 'La conferencia más importante de tecnología del año con speakers internacionales.'
-    },
-    {
-      id: 2,
-      title: 'Workshop de Marketing Digital',
-      date: '2024-03-20',
-      time: '14:00',
-      location: 'Espacio Coworking',
-      attendees: 80,
-      maxAttendees: 100,
-      price: 50,
-      category: 'Marketing',
-      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=250&fit=crop',
-      rating: 4.6,
-      description: 'Aprende las mejores estrategias de marketing digital para tu negocio.'
-    },
-    {
-      id: 3,
-      title: 'Networking Empresarial',
-      date: '2024-03-25',
-      time: '19:30',
-      location: 'Hotel Premium',
-      attendees: 120,
-      maxAttendees: 150,
-      price: 25,
-      category: 'Networking',
-      image: 'https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=400&h=250&fit=crop',
-      rating: 4.9,
-      description: 'Conecta con profesionales y expande tu red de contactos.'
-    },
-    {
-      id: 4,
-      title: 'Concierto de Rock',
-      date: '2024-04-01',
-      time: '21:00',
-      location: 'Estadio Municipal',
-      attendees: 5000,
-      maxAttendees: 8000,
-      price: 80,
-      category: 'Entretenimiento',
-      image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=250&fit=crop',
-      rating: 4.7,
-      description: 'El mejor concierto de rock del año con bandas internacionales.'
-    },
-    {
-      id: 5,
-      title: 'Seminario de Liderazgo',
-      date: '2024-04-05',
-      time: '09:00',
-      location: 'Universidad Nacional',
-      attendees: 200,
-      maxAttendees: 300,
-      price: 100,
-      category: 'Educación',
-      image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&h=250&fit=crop',
-      rating: 4.5,
-      description: 'Desarrolla tus habilidades de liderazgo con expertos reconocidos.'
-    },
-    {
-      id: 6,
-      title: 'Feria de Empleo',
-      date: '2024-04-10',
-      time: '10:00',
-      location: 'Centro de Exposiciones',
-      attendees: 800,
-      maxAttendees: 1200,
-      price: 0,
-      category: 'Empleo',
-      image: 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=400&h=250&fit=crop',
-      rating: 4.4,
-      description: 'Encuentra tu próximo trabajo en la feria más grande del país.'
+  // Cargar eventos desde la API
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        setLoading(true)
+        const params = {}
+        if (searchTerm) params.name = searchTerm
+        
+        const data = await eventsApi.getEvents(params)
+        setEvents(data.collection || [])
+        setError('')
+      } catch (err) {
+        console.error('Error cargando eventos:', err)
+        setError('Error al cargar los eventos')
+        setEvents([])
+      } finally {
+        setLoading(false)
+      }
     }
-  ]
+
+    fetchEvents()
+  }, [searchTerm])
+
+  // Transformar datos de la API al formato esperado por el componente
+  const transformEventData = (apiEvent) => {
+    return {
+      id: apiEvent.id,
+      title: apiEvent.name,
+      date: apiEvent.start_date?.split('T')[0] || '',
+      time: apiEvent.start_date?.split('T')[1]?.substring(0, 5) || '',
+      location: apiEvent.event_location?.name || 'Ubicación no especificada',
+      attendees: 0, // TODO: Implementar contador de inscritos
+      maxAttendees: apiEvent.max_assistance || 0,
+      price: apiEvent.price || 0,
+      category: 'Evento', // TODO: Implementar categorías
+      image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=250&fit=crop', // Imagen por defecto
+      rating: 4.5, // TODO: Implementar sistema de ratings
+      description: apiEvent.description || 'Sin descripción'
+    }
+  }
 
   const categories = [
     { value: 'all', label: 'Todas las categorías' },
@@ -112,7 +70,9 @@ const Events = () => {
     { value: 'attendees', label: 'Asistentes' }
   ]
 
-  const filteredEvents = events
+  const transformedEvents = events.map(transformEventData)
+  
+  const filteredEvents = transformedEvents
     .filter(event => {
       const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           event.description.toLowerCase().includes(searchTerm.toLowerCase())
@@ -195,6 +155,20 @@ const Events = () => {
       <div className="results-count">
         <p>{filteredEvents.length} eventos encontrados</p>
       </div>
+
+      {/* Loading State */}
+      {loading && (
+        <div className="loading-state">
+          <p>Cargando eventos...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="error-state">
+          <p>{error}</p>
+        </div>
+      )}
 
       {/* Events Grid */}
       <div className="events-grid">
