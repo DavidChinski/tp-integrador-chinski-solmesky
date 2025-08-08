@@ -1,13 +1,12 @@
+// src/contexts/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { authApi } from '../services/api'
 
 const AuthContext = createContext()
-
 export const useAuth = () => {
-  const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error('useAuth debe ser usado dentro de un AuthProvider')
-  }
-  return context
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth debe usarse dentro de AuthProvider')
+  return ctx
 }
 
 export const AuthProvider = ({ children }) => {
@@ -16,91 +15,50 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Verificar si hay un token válido al cargar la app
-    const checkAuth = async () => {
-      const storedToken = localStorage.getItem('token')
-      if (storedToken) {
-        try {
-          // Verificar token con el backend
-          const response = await fetch('http://localhost:3000/api/user/verify', {
-            headers: {
-              'Authorization': `Bearer ${storedToken}`
-            }
-          })
-          
-          if (response.ok) {
-            const userData = await response.json()
-            setUser(userData)
-            setToken(storedToken)
-          } else {
-            // Token inválido, limpiar
-            localStorage.removeItem('token')
-            setToken(null)
-            setUser(null)
-          }
-        } catch (error) {
-          console.error('Error verificando token:', error)
-          localStorage.removeItem('token')
-          setToken(null)
-          setUser(null)
-        }
+    // Restaurar sesión desde token guardado
+    const storedToken = localStorage.getItem('token')
+    if (storedToken) {
+      try {
+        const payload = JSON.parse(atob(storedToken.split('.')[1]))
+        setUser(payload)
+        setToken(storedToken)
+      } catch {
+        localStorage.removeItem('token')
+        setUser(null)
+        setToken(null)
       }
-      setLoading(false)
     }
-
-    checkAuth()
+    setLoading(false)
   }, [])
 
   const login = async (username, password) => {
     try {
-      const response = await fetch('http://localhost:3000/api/user/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username, password })
-      })
-
-      const data = await response.json()
-
-      if (response.ok && data.success) {
+      const data = await authApi.login({ username, password }) // { success, token }
+      if (data?.success && data?.token) {
         localStorage.setItem('token', data.token)
         setToken(data.token)
-        
-        // Decodificar el token para obtener info del usuario
-        const payload = JSON.parse(atob(data.token.split('.')[1]))
-        setUser(payload)
-        
+        try {
+          const payload = JSON.parse(atob(data.token.split('.')[1]))
+          setUser(payload)
+        } catch {
+          // si falla el decode, igual deja logueado por token
+          setUser(null)
+        }
         return { success: true }
-      } else {
-        return { success: false, message: data.message || 'Error en el login' }
       }
-    } catch (error) {
-      console.error('Error en login:', error)
-      return { success: false, message: 'Error de conexión' }
+      return { success: false, message: data?.message || 'Login inválido' }
+    } catch (err) {
+      return { success: false, message: err.message || 'Error de conexión' }
     }
   }
 
   const register = async (userData) => {
     try {
-      const response = await fetch('http://localhost:3000/api/user/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(userData)
-      })
-
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        return { success: true, message: data.message }
-      } else {
-        return { success: false, message: data.message || 'Error en el registro' }
-      }
-    } catch (error) {
-      console.error('Error en registro:', error)
-      return { success: false, message: 'Error de conexión' }
+      const data = await authApi.register(userData)
+      // acá tu backend devuelve { success, message, user? }
+      return { success: data?.success, message: data?.message }
+    } catch (err) {
+      return { success: false, message: err.message || 'Error de conexión' }
     }
   }
 
@@ -110,19 +68,19 @@ export const AuthProvider = ({ children }) => {
     setUser(null)
   }
 
-  const value = {
-    user,
-    token,
-    loading,
-    login,
-    register,
-    logout,
-    isAuthenticated: !!token
-  }
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        loading,
+        login,
+        register,
+        logout,
+        isAuthenticated: !!token,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
-} 
+}

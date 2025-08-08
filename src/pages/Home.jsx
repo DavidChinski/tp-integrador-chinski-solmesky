@@ -1,70 +1,46 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Calendar, Users, MapPin, Clock, ArrowRight, Star, TrendingUp } from 'lucide-react'
 import './Home.css'
+import { eventsApi } from '../services/api'
 
 const Home = () => {
-  const featuredEvents = [
-    {
-      id: 1,
-      title: 'Conferencia de Tecnología 2024',
-      date: '2024-03-15',
-      time: '18:00',
-      location: 'Centro de Convenciones',
-      attendees: 150,
-      image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=250&fit=crop',
-      category: 'Tecnología'
-    },
-    {
-      id: 2,
-      title: 'Workshop de Marketing Digital',
-      date: '2024-03-20',
-      time: '14:00',
-      location: 'Espacio Coworking',
-      attendees: 80,
-      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=250&fit=crop',
-      category: 'Marketing'
-    },
-    {
-      id: 3,
-      title: 'Networking Empresarial',
-      date: '2024-03-25',
-      time: '19:30',
-      location: 'Hotel Premium',
-      attendees: 120,
-      image: 'https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=400&h=250&fit=crop',
-      category: 'Networking'
+  const [featuredEvents, setFeaturedEvents] = useState([])
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await eventsApi.getEvents({ limit: 6, offset: 0 })
+        const mapped = (data.collection || []).map(ev => ({
+          id: ev.id,
+          title: ev.name,
+          date: new Date(ev.start_date).toLocaleDateString(),
+          time: new Date(ev.start_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          location: ev?.event_location?.name || 'Sin ubicación',
+          attendees: ev.max_assistance || 0,
+          image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=250&fit=crop',
+          category: 'Evento'
+        }))
+        setFeaturedEvents(mapped)
+      } catch (_) {
+        setFeaturedEvents([])
+      }
     }
-  ]
+    load()
+  }, [])
 
   const stats = [
-    { icon: Calendar, value: '500+', label: 'Eventos Creados' },
-    { icon: Users, value: '10K+', label: 'Usuarios Registrados' },
-    { icon: MapPin, value: '50+', label: 'Ciudades' },
-    { icon: Star, value: '4.8', label: 'Calificación' }
+    { value: '250+', label: 'Eventos Activos', icon: Calendar },
+    { value: '10k+', label: 'Usuarios Registrados', icon: Users },
+    { value: '120+', label: 'Ubicaciones', icon: MapPin },
+    { value: '98%', label: 'Satisfacción', icon: Star }
   ]
 
   const features = [
-    {
-      icon: Calendar,
-      title: 'Crear Eventos Fácilmente',
-      description: 'Crea y gestiona tus eventos de manera intuitiva con nuestra plataforma.'
-    },
-    {
-      icon: Users,
-      title: 'Gestionar Asistentes',
-      description: 'Controla las inscripciones y mantén un registro detallado de participantes.'
-    },
-    {
-      icon: MapPin,
-      title: 'Ubicaciones Múltiples',
-      description: 'Organiza eventos en diferentes ubicaciones con herramientas de localización.'
-    },
-    {
-      icon: TrendingUp,
-      title: 'Analytics en Tiempo Real',
-      description: 'Obtén insights valiosos sobre el rendimiento de tus eventos.'
-    }
+    { icon: Calendar,  title: 'Crear Eventos Fácilmente',      description: 'Crea y gestiona tus eventos de manera intuitiva con nuestra plataforma.' },
+    { icon: Users,     title: 'Gestionar Asistentes',          description: 'Controla las inscripciones y mantén un registro detallado de participantes.' },
+    { icon: MapPin,    title: 'Ubicaciones Múltiples',         description: 'Organiza eventos en diferentes ubicaciones con herramientas de localización.' },
+    { icon: TrendingUp,title: 'Analytics en Tiempo Real',      description: 'Obtén insights valiosos sobre el rendimiento de tus eventos.' }
   ]
 
   return (
@@ -80,16 +56,12 @@ const Home = () => {
             Crea, organiza y gestiona eventos de todo tipo con nuestra plataforma intuitiva y completa.
             Conecta con tu audiencia de manera efectiva.
           </p>
-          <div className="hero-buttons">
-            <Link to="/create-event" className="btn btn-primary">
-              Crear Evento
-              <ArrowRight className="btn-icon" />
-            </Link>
-            <Link to="/events" className="btn btn-secondary">
-              Explorar Eventos
-            </Link>
+          <div className="hero-actions">
+            <Link to="/events" className="btn btn-primary">Explorar Eventos</Link>
+            <Link to="/create-event" className="btn btn-outline">Crear Evento</Link>
           </div>
         </div>
+
         <div className="hero-image">
           <div className="hero-card">
             <div className="hero-card-header">
@@ -103,6 +75,11 @@ const Home = () => {
                     <h4>{event.title}</h4>
                     <div className="hero-event-meta">
                       <span>{event.date}</span>
+                      <span>•</span>
+                      <span>{event.time}</span>
+                    </div>
+                    <div className="hero-event-location">
+                      <MapPin className="hero-location-icon" />
                       <span>{event.location}</span>
                     </div>
                   </div>
@@ -136,8 +113,11 @@ const Home = () => {
       <section className="featured-events">
         <div className="section-header">
           <h2>Eventos Destacados</h2>
-          <p>Descubre los eventos más populares y próximos</p>
+          <Link to="/events" className="view-all">
+            Ver todos <ArrowRight className="view-all-icon" />
+          </Link>
         </div>
+
         <div className="events-grid">
           {featuredEvents.map((event) => (
             <div key={event.id} className="event-card">
@@ -158,50 +138,41 @@ const Home = () => {
                   </div>
                   <div className="event-meta-item">
                     <Users className="event-meta-icon" />
-                    <span>{event.attendees} asistentes</span>
+                    <span>{event.attendees} cupos</span>
                   </div>
                 </div>
-                <Link to={`/events/${event.id}`} className="event-link">
-                  Ver Detalles
-                  <ArrowRight className="event-link-icon" />
-                </Link>
+                <div className="event-actions">
+                  <Link to={`/events/${event.id}`} className="btn btn-secondary">
+                    Ver Detalles
+                  </Link>
+                </div>
               </div>
             </div>
           ))}
+          {featuredEvents.length === 0 && (
+            <div className="no-events">
+              <p>No hay eventos disponibles.</p>
+            </div>
+          )}
         </div>
       </section>
 
-      {/* Features Section */}
+      {/* Features */}
       <section className="features">
-        <div className="section-header">
-          <h2>¿Por qué elegirnos?</h2>
-          <p>Descubre todas las funcionalidades que ofrecemos</p>
-        </div>
         <div className="features-grid">
-          {features.map((feature, index) => (
-            <div key={index} className="feature-card">
-              <div className="feature-icon">
-                <feature.icon />
-              </div>
-              <h3 className="feature-title">{feature.title}</h3>
-              <p className="feature-description">{feature.description}</p>
+          {features.map((feature, idx) => (
+            <div key={idx} className="feature-card">
+              <feature.icon className="feature-icon" />
+              <h3>{feature.title}</h3>
+              <p>{feature.description}</p>
             </div>
           ))}
         </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="cta">
-        <div className="cta-content">
-          <h2>¿Listo para crear tu primer evento?</h2>
-          <p>Únete a miles de organizadores que ya confían en nuestra plataforma</p>
+        <div className="cta">
+          <h3>¿Listo para empezar?</h3>
           <div className="cta-buttons">
-            <Link to="/register" className="btn btn-primary">
-              Registrarse Gratis
-            </Link>
-            <Link to="/events" className="btn btn-secondary">
-              Ver Eventos
-            </Link>
+            <Link to="/register" className="btn btn-primary">Registrarse Gratis</Link>
+            <Link to="/events" className="btn btn-secondary">Ver Eventos</Link>
           </div>
         </div>
       </section>
@@ -209,4 +180,4 @@ const Home = () => {
   )
 }
 
-export default Home 
+export default Home

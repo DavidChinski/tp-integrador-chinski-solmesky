@@ -11,6 +11,9 @@ const EventDetail = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [loadingEvent, setLoadingEvent] = useState(true)
   const [error, setError] = useState('')
+  const [participants, setParticipants] = useState([])
+const [showParticipants, setShowParticipants] = useState(false)
+
 
   // Cargar evento desde la API
   useEffect(() => {
@@ -19,6 +22,21 @@ const EventDetail = () => {
         setLoadingEvent(true)
         const eventData = await eventsApi.getEvent(id)
         setEvent(eventData)
+
+try {
+  const token = localStorage.getItem('token')
+  if (token) {
+    const payload = JSON.parse(atob(token.split('.')[1])) // user del JWT
+    const resp = await eventsApi.getParticipants(id)
+    const col = resp.collection || []
+    setParticipants(col)
+    const meIn = col.some(p => p.user && p.user.id === payload.id)
+    setIsRegistered(meIn)
+  }
+} catch {}
+
+
+        
         setError('')
       } catch (err) {
         console.error('Error cargando evento:', err)
@@ -230,6 +248,41 @@ const EventDetail = () => {
                 </div>
               </div>
             </div>
+
+            {/* Participantes */}
+<div className="participants-toggle">
+  <button
+    className="btn"
+    onClick={async () => {
+      if (!showParticipants) {
+        try {
+          const resp = await eventsApi.getParticipants(event.id)
+          setParticipants(resp.collection || [])
+        } catch (e) {
+          alert('No se pudieron cargar los participantes')
+        }
+      }
+      setShowParticipants(!showParticipants)
+    }}
+  >
+    {showParticipants ? 'Ocultar participantes' : 'Ver participantes'}
+  </button>
+</div>
+
+{showParticipants && (
+  <div className="participants-section">
+    <h2>Participantes ({participants.length})</h2>
+    <ul className="participants-list">
+      {participants.map((p, idx) => (
+        <li key={idx}>
+          {p.user?.first_name} {p.user?.last_name} ({p.user?.username})
+          {p.attended ? ' ✓' : ''}
+        </li>
+      ))}
+    </ul>
+  </div>
+)}
+
 
             {/* Speakers */}
             {eventData.speakers.length > 0 && (
