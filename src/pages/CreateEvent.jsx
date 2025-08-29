@@ -134,40 +134,74 @@ const CreateEvent = () => {
     }
   }, [isAuthenticated])
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
-    if (!validateForm()) {
-      return
+ 
+const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  if (!validateForm()) {
+    return;
+  }
+
+  setIsLoading(true);
+  setApiError('');
+
+  try {
+    let uploadedImageUrl = null;
+
+    // 1. Subir la imagen si existe
+    if (formData.image) {
+      const formImage = new FormData();
+      formImage.append('image', formData.image);
+
+      const imageRes = await fetch('http://localhost:3000/api/upload', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: formImage,
+      });
+
+      const imageData = await imageRes.json();
+      if (!imageRes.ok) throw new Error(imageData.message || 'Error subiendo imagen');
+      uploadedImageUrl = imageData.imageUrl; // Por ejemplo: /uploads/xxxx.jpg
     }
 
-    setIsLoading(true)
-    setApiError('')
-    
-    try {
-      // Combinar fecha y hora
-      const startDate = `${formData.date}T${formData.time}:00`
-      
-      const eventData = {
-        name: formData.title,
-        description: formData.description,
-        start_date: startDate,
-        duration_in_minutes: 120, // Por defecto 2 horas
-        price: parseFloat(formData.price) || 0,
-        enabled_for_enrollment: true,
-        max_assistance: parseInt(formData.maxAttendees),
-        id_event_location: parseInt(formData.id_event_location)
-      }
-      
-      await eventsApi.createEvent(eventData)
-      navigate('/events')
-    } catch (error) {
-      console.error('Error creando evento:', error)
-      setApiError('Error al crear el evento. Intenta nuevamente.')
-    } finally {
-      setIsLoading(false)
-    }
+    // 2. Crear el evento con la URL de la imagen (si hay)
+    const startDate = `${formData.date}T${formData.time}:00`;
+    const eventData = {
+      name: formData.title,
+      description: formData.description,
+      start_date: startDate,
+      duration_in_minutes: 120,
+      price: parseFloat(formData.price) || 0,
+      // ...otros campos necesarios...
+      image_url: uploadedImageUrl || null // Nuevo campo que guarda la URL de la imagen
+    };
+
+    // Llamada a la API para crear el evento
+    const eventRes = await fetch('http://localhost:3000/api/event', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      },
+      body: JSON.stringify(eventData),
+    });
+
+    const eventDataRes = await eventRes.json();
+    if (!eventRes.ok) throw new Error(eventDataRes.message || 'Error creando evento');
+
+    // Redireccionar, limpiar formulario, mostrar mensaje, etc.
+    // Por ejemplo:
+    // navigate('/events');
+  } catch (err) {
+    setApiError(err.message || 'Error al crear evento');
+  } finally {
+    setIsLoading(false);
   }
+};
+
+
 
   return (
     <div className="create-event-page">
